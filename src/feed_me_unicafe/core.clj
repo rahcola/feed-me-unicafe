@@ -34,10 +34,10 @@
 
 (defn item-descriptions [item]
   (let [raw (first (:content (first (filter-by-tag :description (:content item)))))
-        html (str "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-                  "<description>"
-                  raw
-                  "</description>")]
+        xml (str "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                 "<description>"
+                 raw
+                 "</description>")]
     (:content (xml/parse-str html))))
 
 (defn description-meal [description]
