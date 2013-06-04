@@ -3,6 +3,23 @@
   (:import java.net.URI)
   (:import java.text.SimpleDateFormat))
 
+(def symbols
+  {"[S]" :recommended-by-KELA
+   "vl" :low-lactose
+   "l" :lactose-free
+   "g" :gluten-free
+   "v" :contains-garlic
+   "k" :vegetable-diet
+   "ve" :vegan
+   "se" :contains-celery
+   "pä" :contains-nuts
+   "m" :milk-free
+   "so" :contains-soy})
+
+(def prices
+  {"Edullisesti" :budget
+   "Maukkaasti" :tasty})
+
 (def restaurant-ids
   [1 2 3 4 5 15 6 7 8 16 10 11 12 13 14 18 19 21])
 
@@ -48,16 +65,21 @@
 (defn date-of-row [row]
   (parse-date (html/text (first (html/select row [:th.weekday :> :span])))))
 
+(defn parse-symbols [symbols-str]
+  (set (map symbols
+            (-> (clojure.string/replace symbols-str #"\(|\)" "")
+                (clojure.string/split #",")))))
+
 (defn parse-menu-item [menu-item]
   (let [name (html/text (first (html/select menu-item
                                             [[:span html/first-child]])))
-        specials (html/text (first (html/select menu-item
-                                                [:em])))
+        symbols (html/text (first (html/select menu-item
+                                               [:em])))
         price (html/text (first (html/select menu-item
                                              [:span.priceinfo])))]
     {:name name
-     :specials specials
-     :price price}))
+     :symbols (parse-symbols symbols)
+     :price (get prices price price)}))
 
 (defn menus-of-row [row]
   (map (fn [menu]
