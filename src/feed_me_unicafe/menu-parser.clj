@@ -1,7 +1,6 @@
 (ns feed-me-unicafe.menu-parser
   (:require [net.cgrand.enlive-html :as html])
   (:import java.net.URI)
-  (:import java.net.URL)
   (:import java.text.SimpleDateFormat))
 
 (def restaurant-ids
@@ -9,59 +8,72 @@
 
 (def unicafe-domain "www.hyyravintolat.fi")
 
-(def language-path
+(def language-fragments
   {:finnish "/unicafe/lounashaku"
    :english "/en/unicafe/lunch-search"})
 
+(defn build-query [keys values]
+  (apply str (interpose "&" (map (fn [key value] (str key "=" value))
+                                 keys
+                                 values))))
+
 (defn page! [language]
-  (let [restaurant-query (apply str (interpose "&" (map (fn [id] (str "r[" id "]=1"))
-                                                        restaurant-ids)))
-        days-query (apply str (interpose "&" (map (fn [day] (str "v[" day "]=1"))
-                                                  [1 2 3 4 5])))
-        url (.toURL (URI. "http" unicafe-domain (get language-path language)
-                          (str restaurant-query "&" days-query "&adv_get=Etsi") nil))]
+  (let [restaurant-query (build-query (map (fn [id] (str "r[" id "]"))
+                                           restaurant-ids)
+                                      (repeat 1))
+        days-query (build-query (map (fn [day] (str "v[" day "]"))
+                                     [1 2 3 4 5])
+                                (repeat 1))
+        url (.toURL (URI. "http" unicafe-domain
+                          (get language-fragments language)
+                          (str restaurant-query "&"
+                               days-query
+                               "&adv_get=Etsi")
+                          nil))]
     (html/html-resource url)))
 
-(defn menu-table [dom]
-  (first (html/select dom [:table.weeklymenu])))
+(defn restaurant-names [dom]
+  (map html/text
+       (html/select dom [:#weeksearch
+                         [:tr html/first-child]
+                         :th html/first-child])))
 
-(defn restaurant-names [menu-table]
-  (map html/text (html/select menu-table [:thead :tr :th html/first-child])))
-
-(defn daily-rows [menu-table]
-  (html/select menu-table [:table.weeklymenu :> :tr]))
-
-(defn row-date [row]
-  (html/text (first (html/select row [:th.weekday :span]))))
-
-(defn row-menus [row]
-  (html/select row [:td]))
-
-(defn menu-items [menu]
-  (html/select menu [:p]))
-
-(defn menu-item-title [menu-item]
-  (html/text (first (html/select menu-item [:p html/first-child]))))
-
-(defn menu-item-price [menu-item]
-  (html/text (first (html/select menu-item [:span.priceinfo]))))
+(defn rows [dom]
+  (drop 2 (html/select dom [:#weeksearch :tr])))
 
 (defn parse-date [date-str]
   (let [sdf (SimpleDateFormat. "d.M.y")]
     (.parse sdf date-str)))
 
-(defn parse-menu [dom]
-  (let [table (menu-table dom)
-        restaurant-names (restaurant-names table)]
+(defn date-of-row [row]
+  (parse-date (html/text (first (html/select row [:th.weekday :> :span])))))
+
+(defn parse-menu-item [menu-item]
+  (let [name (html/text (first (html/select menu-item
+                                            [[:span html/first-child]])))
+        specials (html/text (first (html/select menu-item
+                                                [:em])))
+        price (html/text (first (html/select menu-item
+                                             [:span.priceinfo])))]
+    {:name name
+     :specials specials
+     :price price}))
+
+(defn menus-of-row [row]
+  (map (fn [menu]
+         (map parse-menu-item (html/select menu [:p])))
+       (html/select row [[:td (html/pred #(not= [" "] (:content %)))]])))
+
+(defn parse-page [dom]
+  (let [restaurants (restaurant-names dom)]
     (set (flatten (map (fn [row]
-                         (let [date (parse-date (row-date row))]
+                         (let [date (date-of-row row)]
                            (map (fn [menu restaurant]
                                   (map (fn [menu-item]
-                                         {:date date
-                                          :restaurant restaurant
-                                          :title (menu-item-title menu-item)
-                                          :price (menu-item-price menu-item)})
-                                       (menu-items menu)))
-                                (row-menus row)
-                                restaurant-names)))
-                       (daily-rows table))))))
+                                         (assoc menu-item
+                                           :restaurant restaurant
+                                           :date date))
+                                       menu))
+                                (menus-of-row row)
+                                restaurants)))
+                       (rows dom))))))
