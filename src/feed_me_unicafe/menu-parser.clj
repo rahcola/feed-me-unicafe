@@ -34,21 +34,6 @@
                                  keys
                                  values))))
 
-(defn page! [language]
-  (let [restaurant-query (build-query (map (fn [id] (str "r[" id "]"))
-                                           restaurant-ids)
-                                      (repeat 1))
-        days-query (build-query (map (fn [day] (str "v[" day "]"))
-                                     [1 2 3 4 5])
-                                (repeat 1))
-        url (.toURL (URI. "http" unicafe-domain
-                          (get language-fragments language)
-                          (str restaurant-query "&"
-                               days-query
-                               "&adv_get=Etsi")
-                          nil))]
-    (html/html-resource url)))
-
 (defn restaurant-names [dom]
   (map html/text
        (html/select dom [:#weeksearch
@@ -83,8 +68,10 @@
 
 (defn menus-of-row [row]
   (map (fn [menu]
-         (map parse-menu-item (html/select menu [:p])))
-       (html/select row [[:td (html/pred #(not= [" "] (:content %)))]])))
+         (if (= [" "] (:content menu))
+           []
+           (map parse-menu-item (html/select menu [:p]))))
+       (html/select row [:td])))
 
 (defn parse-page [dom]
   (let [restaurants (restaurant-names dom)]
@@ -99,3 +86,21 @@
                                 (menus-of-row row)
                                 restaurants)))
                        (rows dom))))))
+
+(defn page! [language]
+  (let [restaurant-query (build-query (map (fn [id] (str "r[" id "]"))
+                                           restaurant-ids)
+                                      (repeat 1))
+        days-query (build-query (map (fn [day] (str "v[" day "]"))
+                                     [1 2 3 4 5])
+                                (repeat 1))
+        url (.toURL (URI. "http" unicafe-domain
+                          (get language-fragments language)
+                          (str restaurant-query "&"
+                               days-query
+                               "&adv_get=Etsi")
+                          nil))]
+    (html/html-resource url)))
+
+(defn menus! [language]
+  (parse-page (page! language)))
