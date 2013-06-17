@@ -20,8 +20,45 @@
   {"Edullisesti" :budget
    "Maukkaasti" :tasty})
 
-(def restaurant-ids
-  [1 2 3 4 5 15 6 7 8 16 10 11 12 13 14 18 19 21])
+(def restaurant-id->internal-name
+  {1 :metsatalo
+   2 :olivia
+   3 :porthania
+   4 :paarakennus
+   5 :rotunda
+   6 :topelias
+   7 :valtiotiede
+   8 :ylioppilasaukio
+   10 :chemicum
+   11 :exactum
+   12 :physicum
+   13 :meilahti
+   14 :ruskeasuo
+   15 :soc-and-kom
+   18 :biokeskus
+   19 :korona
+   21 :viikuna})
+
+(def restaurant-ids (keys restaurant-id->internal-name))
+
+(def restaurant-name->internal-name
+  {"Metsätalo" :metsatalo
+   "Olivia" :olivia
+   "Porthania" :porthania
+   "Päärakennus" :paarakennus
+   "Rotunda" :rotunda
+   "Topelias" :topelias
+   "Valtiotiede" :valtiotiede
+   "Ylioppilasaukio" :ylioppilasaukio
+   "Chemicum" :chemicum
+   "Exactum" :exactum
+   "Physicum" :physicum
+   "Meilahti" :meilahti
+   "Ruskeasuo" :ruskeasuo
+   "Soc&Kom" :soc-and-kom
+   "Biokeskus" :biokeskus
+   "Korona" :korona
+   "Viikuna" :viikuna})
 
 (def unicafe-domain "www.hyyravintolat.fi")
 
@@ -34,6 +71,16 @@
                                  keys
                                  values))))
 
+(defn restaurant-query [restaurant-ids]
+  (build-query (map (fn [id] (str "r[" id "]"))
+                    restaurant-ids)
+               (repeat 1)))
+
+(defn days-query [days]
+  (build-query (map (fn [day] (str "v[" day "]"))
+                    days)
+               (repeat 1)))
+
 (defn restaurant-names [dom]
   (map html/text
        (html/select dom [:#weeksearch
@@ -43,35 +90,38 @@
 (defn rows [dom]
   (drop 2 (html/select dom [:#weeksearch :tr])))
 
-(defn parse-date [date-str]
-  (let [sdf (SimpleDateFormat. "d.M.y")]
-    (.parse sdf date-str)))
-
 (defn date-of-row [row]
-  (parse-date (html/text (first (html/select row [:th.weekday :> :span])))))
-
-(defn parse-symbols [symbols-str]
-  (set (map symbols
-            (-> (clojure.string/replace symbols-str #"\(|\)" "")
-                (clojure.string/split #",")))))
-
-(defn parse-menu-item [menu-item]
-  (let [name (html/text (first (html/select menu-item
-                                            [[:span html/first-child]])))
-        symbols (html/text (first (html/select menu-item
-                                               [:em])))
-        price (html/text (first (html/select menu-item
-                                             [:span.priceinfo])))]
-    {:name name
-     :symbols (parse-symbols symbols)
-     :price (get prices price price)}))
+  (html/text (first (html/select row [:th.weekday :> :span]))))
 
 (defn menus-of-row [row]
   (map (fn [menu]
          (if (= [" "] (:content menu))
            []
-           (map parse-menu-item (html/select menu [:p]))))
+           (html/select menu [:p])))
        (html/select row [:td])))
+
+(defn parse-symbols [symbols-strs]
+  (set (map symbols
+            (flatten (map #(-> (clojure.string/replace % #"\(|\)" "")
+                               (clojure.string/split #","))
+                          symbols-strs)))))
+
+(defn parse-date [date-str]
+  (let [sdf (SimpleDateFormat. "d.M.y")]
+    (.parse sdf date-str)))
+
+(defn parse-menu-item [menu-item restaurant date]
+  (let [name (html/text (first (html/select menu-item
+                                            [[:span html/first-child]])))
+        symbols (map html/text (html/select menu-item
+                                            [:em]))
+        price (html/text (first (html/select menu-item
+                                             [:span.priceinfo])))]
+    {:restaurant (get restaurant-name->internal-name restaurant :unknown)
+     :date (parse-date date)
+     :name name
+     :symbols (parse-symbols symbols)
+     :price (get prices price price)}))
 
 (defn parse-page [dom]
   (let [restaurants (restaurant-names dom)]
@@ -79,25 +129,19 @@
                          (let [date (date-of-row row)]
                            (map (fn [menu restaurant]
                                   (map (fn [menu-item]
-                                         (assoc menu-item
-                                           :restaurant restaurant
-                                           :date date))
+                                         (parse-menu-item menu-item
+                                                          restaurant
+                                                          date))
                                        menu))
                                 (menus-of-row row)
                                 restaurants)))
                        (rows dom))))))
 
 (defn page! [language]
-  (let [restaurant-query (build-query (map (fn [id] (str "r[" id "]"))
-                                           restaurant-ids)
-                                      (repeat 1))
-        days-query (build-query (map (fn [day] (str "v[" day "]"))
-                                     [1 2 3 4 5])
-                                (repeat 1))
-        url (.toURL (URI. "http" unicafe-domain
+  (let [url (.toURL (URI. "http" unicafe-domain
                           (get language-fragments language)
-                          (str restaurant-query "&"
-                               days-query
+                          (str (restaurant-query restaurant-ids) "&"
+                               (days-query [1 2 3 4 5])
                                "&adv_get=Etsi")
                           nil))]
     (html/html-resource url)))
