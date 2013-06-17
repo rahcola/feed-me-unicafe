@@ -3,6 +3,9 @@
   (:import java.net.URI)
   (:import java.text.SimpleDateFormat))
 
+(def html-escape-pattern
+  #"(?:&(?:[A-Za-z_:][\w:.-]*|\#(?:[0-9]+|x[0-9a-fA-F]+));)")
+
 (def symbols
   {"[S]" :recommended-by-KELA
    "vl" :low-lactose
@@ -121,7 +124,8 @@
      :date (parse-date date)
      :name name
      :symbols (parse-symbols symbols)
-     :price (get prices price price)}))
+     :price (get prices price
+                 (clojure.string/replace price html-escape-pattern ""))}))
 
 (defn parse-page [dom]
   (let [restaurants (restaurant-names dom)]

@@ -1,4 +1,6 @@
 (ns feed-me-unicafe.core
+  (:require [ring.adapter.jetty :as jetty])
+  (:require [clojure.data.json :as json])
   (:require [feed-me-unicafe.menu-parser :as p]))
 
 (defn is [x]
@@ -27,3 +29,17 @@
                                 true
                                 map))
                       offerings))
+
+(extend-type java.util.Date
+  json/JSONWriter
+  (-write [date out]
+    (let [date-format (doto (new java.text.SimpleDateFormat "yyyy-MM-dd'T'HH:mm:ssZ")
+                        (.setTimeZone (java.util.TimeZone/getTimeZone "UTC")))]
+      (.write out (str "\"" (.format date-format date) "\"")))))
+
+(defn handler [request]
+  {:status 200
+   :headers {"Content-Type" "application/json"}
+   :body (json/write-str (p/menus! :finnish) :escape-unicode false :escape-slash false)})
+
+(defonce server (jetty/run-jetty #'handler {:port 8080 :join? false}))
