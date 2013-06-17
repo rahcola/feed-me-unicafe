@@ -38,6 +38,7 @@
    13 :meilahti
    14 :ruskeasuo
    15 :soc-and-kom
+   16 :kookos
    18 :biokeskus
    19 :korona
    21 :viikuna})
@@ -59,9 +60,30 @@
    "Meilahti" :meilahti
    "Ruskeasuo" :ruskeasuo
    "Soc&Kom" :soc-and-kom
+   "Kookos" :kookos
    "Biokeskus" :biokeskus
    "Korona" :korona
    "Viikuna" :viikuna})
+
+(def restaurant->location
+  {:metsatalo {:latitude 60.172577 :longitude 24.948878}
+   :olivia {:latitude 60.175077 :longitude 24.952979}
+   :porthania {:latitude 60.169878 :longitude 24.948669}
+   :paarakennus {:latitude 60.169178 :longitude 24.949297}
+   :rotunda {:latitude 60.170332 :longitude 24.950791}
+   :topelias {:latitude 60.171806 :longitude 24.95067}
+   :valtiotiede {:latitude 60.173897 :longitude 24.953095}
+   :ylioppilasaukio {:latitude 60.169092 :longitude 24.93992}
+   :chemicum {:latitude 60.205108 :longitude 24.963357}
+   :exactum {:latitude 60.20509 :longitude 24.961209}
+   :physicum {:latitude 60.204755 :longitude 24.963200}
+   :meilahti {:latitude 60.190212 :longitude 24.908911}
+   :ruskeasuo {:latitude 60.206341 :longitude 24.895871}
+   :soc-and-kom {:latitude 60.173054 :longitude 24.95049}
+   :kookos {:latitude 60.181034 :longitude 24.958652}
+   :biokeskus {:latitude 60.226922 :longitude 25.013707}
+   :korona {:latitude 60.226922 :longitude 25.013707}
+   :viikuna {:latitude 60.23049 :longitude 25.020544}})
 
 (def unicafe-domain "www.hyyravintolat.fi")
 
@@ -114,13 +136,15 @@
     (.parse sdf date-str)))
 
 (defn parse-menu-item [menu-item restaurant date]
-  (let [name (html/text (first (html/select menu-item
+  (let [restaurant (get restaurant-name->internal-name restaurant :unknown)
+        name (html/text (first (html/select menu-item
                                             [[:span html/first-child]])))
         symbols (map html/text (html/select menu-item
                                             [:em]))
         price (html/text (first (html/select menu-item
                                              [:span.priceinfo])))]
-    {:restaurant (get restaurant-name->internal-name restaurant :unknown)
+    {:restaurant restaurant
+     :location (get restaurant->location restaurant)
      :date (parse-date date)
      :name name
      :symbols (parse-symbols symbols)
